@@ -1,6 +1,6 @@
 """
 Earnings Calendar - 财报日历
-主要公司财报日期 + MCP 补充搜索
+主要公司 + MCP 补充搜索
 """
 import subprocess
 import re
@@ -31,38 +31,69 @@ MAJOR_EARNINGS = [
 def get_major_earnings() -> List[Dict]:
     """获取主要公司财报"""
     today = datetime.now()
-    
-    # 只返回未来2周内的
     result = []
     for e in MAJOR_EARNINGS:
         date = datetime.strptime(e['date'], "%Y-%m-%d")
-        if date >= today - timedelta(days=7):  # 也包含过去一周的
+        if date >= today - timedelta(days=7):
             result.append(e)
-    
     return sorted(result, key=lambda x: x['date'])
 
 
-def search_additional() -> List[Dict]:
+def search_with_mcp() -> List[Dict]:
     """用 MCP 搜索补充"""
-    # 暂时跳过 MCP 搜索
-    return []
+    print("🔍 MCP searching for more earnings...")
+    
+    cmd = ["/home/mars/.opencode/bin/opencode", "run", 
+           "列出2026年2月-3月发布财报的美股大公司，格式: 股票代码:日期:预期EPS"]
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        output = result.stdout
+        
+        # 解析结果
+        earnings = []
+        for line in output.split('\n'):
+            # 格式: AAPL:2026-02-27:2.84
+            match = re.search(r'([A-Z]{3,5})[📅:\s]+(\d{1,2})/(\d{1,2})[📅:\s]+EPS[:\s]+(\d+\.?\d*)', line)
+            if match:
+                stock = match.group(1)
+                month = int(match.group(2))
+                day = int(match.group(3))
+                eps = float(match.group(4))
+                
+                earnings.append({
+                    "stock": stock,
+                    "date": f"2026-{month:02d}-{day:02d}",
+                    "expected_eps": eps,
+                    "market_cap": 100e9,  # 默认假设 >$100B
+                    "source": "mcp"
+                })
+        
+        print(f"🔍 MCP found: {len(earnings)}")
+        return earnings
+        
+    except Exception as e:
+        print(f"❌ MCP error: {e}")
+        return []
 
 
 def get_all_upcoming_earnings() -> List[Dict]:
     """获取所有即将发布的财报"""
+    # 主要公司
     earnings = get_major_earnings()
-    additional = search_additional()
+    
+    # MCP 补充 (暂时跳过，避免超时)
+    # additional = search_with_mcp()
     
     # 合并
-    all_earnings = earnings + additional
+    # all_earnings = earnings + additional
     
     # 去重
     seen = set()
     unique = []
-    for e in all_earnings:
-        key = e['stock']
-        if key not in seen:
-            seen.add(key)
+    for e in earnings:
+        if e['stock'] not in seen:
+            seen.add(e['stock'])
             unique.append(e)
     
     return sorted(unique, key=lambda x: x['date'])
