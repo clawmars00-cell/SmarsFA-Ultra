@@ -1,6 +1,6 @@
-# SmarsFA-Ultra - SubAgent Cognitive Architecture
+# SmarsFA-Ultra
 
-> 财报智能分析多专家认知系统
+SubAgent Cognitive Architecture for Earnings Analysis
 
 ## 架构
 
@@ -29,21 +29,19 @@ EarningsMasterAgent
 ## 启动
 
 ```bash
-cd /home/mars/.openclaw/sandbox/pm/SmarsFA-Ultra
+cd SmarsFA-Ultra
 python3.12 api.py
 ```
 
 ## API
 
-- `POST /api/analyze` - 分析单支股票
-- `GET /api/watchlist` - 分析watchlist (NVDA, SE)
-- `GET /api/history` - 查询历史
+- `GET /api/health` - 健康检查
+- `POST /api/analyze` - 分析股票
+- `GET /api/agents/status` - Agent状态
 
-## MVP
+## GitHub
 
-- Watchlist: NVDA, SE
-- SubAgents: 6个
-- 延迟目标: < 20秒
+https://github.com/clawmars00-cell/SmarsFA-Ultra
 
 ## 版本
 
