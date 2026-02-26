@@ -1,11 +1,21 @@
 """
-Earnings Calendar - 预设财报列表 + MCP 补充
+Earnings Calendar - 财报日历
+
+数据来源 (按优先级):
+1. Yahoo Finance API (需要解决 JS 渲染问题)
+2. MCP web_search (当前超时)
+3. 预设主要公司列表 (当前使用)
+
+未来优化:
+- 使用 browser 工具自动抓取
+- 接入 Finnhub/Alpha Vantage API
+- 订阅 RSS feed
 """
 from datetime import datetime
 from typing import List, Dict
 
 
-# 预设财报列表 (主要来源)
+# 预设财报列表 (手动更新)
 MAJOR_EARNINGS = [
     {"stock": "AAPL", "date": "2026-02-27", "expected_eps": 2.84, "expected_revenue": 143.8, "market_cap": 3500e9},
     {"stock": "CRM", "date": "2026-02-28", "expected_eps": 2.60, "expected_revenue": 9.5, "market_cap": 320e9},
@@ -25,24 +35,11 @@ MAJOR_EARNINGS = [
 
 
 def get_upcoming_earnings(days: int = 14) -> List[Dict]:
-    """获取未来N天财报"""
     today = datetime.now()
-    
     result = []
     for e in MAJOR_EARNINGS:
         date = datetime.strptime(e['date'], "%Y-%m-%d")
         days_ahead = (date - today).days
-        
         if 0 <= days_ahead <= days:
             result.append(e)
-    
     return sorted(result, key=lambda x: x['date'])
-
-
-if __name__ == "__main__":
-    earnings = get_upcoming_earnings(14)
-    print(f"未来2周财报 ({len(earnings)}家):\n")
-    
-    for e in earnings:
-        cap = e['market_cap'] / 1e9
-        print(f"{e['date']} | {e['stock']:5} | EPS: {e['expected_eps']:+.2f} | Rev: {e['expected_revenue']:.1f}B | Cap: ${cap:.0f}B")
