@@ -1,68 +1,109 @@
 """
-Tools - 增强版数据获取
-支持手动输入实际财报数据
+Tools - 多数据源财务获取 (SEC + RSS)
 """
 import yfinance as yf
 from typing import Dict, Any, Optional
+import time
+import requests
+import json
 
 
-def get_financial_data(ticker: str, actual_data: Optional[Dict] = None) -> Dict[str, Any]:
-    """获取财务数据"""
+# SEC CIK映射
+CIK_MAP = {
+    "NVDA": "000104150",
+    "AAPL": "0000320193",
+    "MSFT": "0000789019",
+    "GOOGL": "0001652044",
+    "AMZN": "0001018724",
+    "META": "0001326801",
+    "TSLA": "0001318605",
+}
+
+
+def get_sec_filings(ticker: str) -> Dict[str, Any]:
+    """从SEC获取最新财报"""
+    cik = CIK_MAP.get(ticker.upper())
+    if not cik:
+        return {"error": f"No CIK for {ticker}"}
+    
     try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
+        url = f"https://efts.sec.gov/LATEST/search-index"
+        params = {
+            "q": ticker,
+            "dateRange": "custom",
+            "startdt": "2026-01-01",
+            "enddt": "2026-12-31",
+            "forms": "10-K,10-Q,8-K"
+        }
         
-        # 如果有手动输入的实际数据，优先使用
-        if actual_data:
-            return {
-                "ticker": ticker,
-                "source": "manual",
-                "revenue": actual_data.get("revenue", 0),
-                "revenue_b": actual_data.get("revenue", 0) / 1e9,
-                "net_income": actual_data.get("net_income", 0),
-                "net_income_b": actual_data.get("net_income", 0) / 1e9,
-                "eps": actual_data.get("eps", 0),
-                "beat_percent": actual_data.get("beat_percent", 0),
-            }
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, params=params, headers=headers, timeout=10)
+        data = resp.json()
         
-        # 否则从yfinance获取
-        qf = stock.quarterly_financials
-        qi = stock.quarterly_income_stmt
+        hits = data.get("hits", {}).get("hits", [])
+        filings = []
         
-        revenue = 0
-        net_income = 0
-        if qf is not None and not qf.empty:
-            if 'Total Revenue' in qf.index:
-                revenue = float(qf.loc['Total Revenue'].iloc[0])
-            if 'Net Income' in qf.index:
-                net_income = float(qf.loc['Net Income'].iloc[0])
-        
-        eps = 0
-        if qi is not None and not qi.empty:
-            if 'Diluted EPS' in qi.index:
-                eps = float(qi.loc['Diluted EPS'].iloc[0])
+        for h in hits[:5]:
+            source = h.get("_source", {})
+            filings.append({
+                "form": source.get("form", ""),
+                "date": source.get("filingDate", ""),
+                "description": source.get("displayName", "")
+            })
         
         return {
             "ticker": ticker,
-            "source": "yfinance",
-            "revenue": revenue,
-            "revenue_b": revenue / 1e9,
-            "net_income": net_income,
-            "net_income_b": net_income / 1e9,
-            "eps": eps,
-            "gross_margin": info.get('grossMargins', 0),
-            "operating_margin": info.get('operatingMargins', 0),
-            "net_margin": info.get('profitMargins', 0),
-            "market_cap_t": info.get('marketCap', 0) / 1e12 if info.get('marketCap') else 0,
-            "pe_ratio": info.get('trailingPE', 0),
-            "price": info.get('currentPrice', 0),
+            "cik": cik,
+            "filings": filings,
+            "source": "SEC"
         }
     except Exception as e:
         return {"ticker": ticker, "error": str(e)}
 
 
-def get_options_chain(ticker: str) -> Dict[str, Any]:
-    """获取期权链"""
+def get_financial_data(ticker: str) -> Dict[str, Any]:
+    """获取财务数据 - 优先SEC"""
+    try:
+        # 先尝试SEC
+        sec_data = get_sec_filings(ticker)
+        
+        # 备用yfinance
+        stock = yf.Ticker(ticker)
+        qf = stock.quarterly_financials
+        info = stock.info
+        
+        revenue = 0
+        net_income = 0
+        quarter = ""
+        
+        if qf is not None and not qf.empty:
+            cols = qf.columns
+            if len(cols) > 0:
+                quarter = str(cols[0])[:7]
+                if 'Total Revenue' in qf.index:
+                    revenue = float(qf.loc['Total Revenue'].iloc[0])
+                if 'Net Income' in qf.index:
+                    net_income = float(qf.loc['Net Income'].iloc[0])
+        
+        return {
+            "ticker": ticker,
+            "quarter": quarter,
+            "source": "yfinance",
+            "revenue": revenue,
+            "revenue_b": revenue / 1e9,
+            "net_income": net_income,
+            "net_income_b": net_income / 1e9,
+            "market_cap_t": info.get('marketCap', 0) / 1e12,
+            "pe_ratio": info.get('trailingPE', 0),
+            "price": info.get('currentPrice', 0),
+            "sec_filings": sec_data.get("filings", [])
+        }
+    except Exception as e:
+        return {"ticker": ticker, "error": str(e)}
+
+
+def get_options_data(ticker: str) -> Dict[str, Any]:
+    """获取期权数据"""
     try:
         stock = yf.Ticker(ticker)
         options = stock.option_chain()
@@ -85,5 +126,6 @@ def get_options_chain(ticker: str) -> Dict[str, Any]:
 
 TOOLS = {
     "get_financial_data": get_financial_data,
-    "get_options_chain": get_options_chain,
+    "get_options_data": get_options_data,
+    "get_sec_filings": get_sec_filings,
 }
