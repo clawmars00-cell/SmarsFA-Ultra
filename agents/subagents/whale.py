@@ -1,47 +1,50 @@
 """
-WhaleBehaviorSubAgent - 资金流分析专家 (真实数据版)
+WhaleBehaviorSubAgent - 资金流分析
 """
 from .base import BaseSubAgent
 from tools import get_options_chain
 
 
 class WhaleBehaviorAgent(BaseSubAgent):
-    """资金流分析 - 大资金动向"""
+    """资金流分析"""
     
     def __init__(self, llm=None):
         super().__init__("whale_behavior", llm)
     
-    def build_prompt(self, context: dict) -> str:
-        stock = context.get("stock", "")
+    def run(self, context: dict) -> dict:
+        """直接使用真实数据"""
+        import time
+        start = time.time()
         
-        # 获取真实期权数据
-        options_data = get_options_chain(stock)
-        
-        return f"""你是资金流专家。分析{stock}的大资金动向:
-
-期权数据:
-{options_data}
-
-请返回JSON格式:
-{{
-    "confidence": 0.80,
-    "key_findings": ["发现"],
-    "structured_data": {{
-        "options_flow": "CALLS_HEAVY|PUTS_HEAVY|BALANCED",
-        "call_put_ratio": 1.5,
-        "whale_signal": "ACCUMULATING|DISTRIBUTING|NEUTRAL"
-    }},
-    "risk_flags": []
-}}"""
-    
-    def mock_response(self) -> str:
-        return """{
-    "confidence": 0.80,
-    "key_findings": ["期权资金流偏看涨", "大单持续流入"],
-    "structured_data": {
-        "options_flow": "CALLS_HEAVY",
-        "call_put_ratio": 1.5,
-        "whale_signal": "ACCUMULATING"
-    },
-    "risk_flags": []
-}"""
+        try:
+            stock = context.get("stock", "NVDA")
+            data = get_options_chain(stock)
+            
+            signal = "ACCUMULATING"
+            if data.get("calls_heavy"):
+                signal = "ACCUMULATING"
+            elif data.get("call_put_ratio", 1) < 1:
+                signal = "DISTRIBUTING"
+            else:
+                signal = "NEUTRAL"
+            
+            return {
+                "module": "whale_behavior",
+                "confidence": 0.85,
+                "key_findings": [
+                    f"Call/Put比率: {data.get('call_put_ratio', 0)}",
+                    f"期权流向: {'CALLS_HEAVY' if data.get('calls_heavy') else 'PUTS_HEAVY'}"
+                ],
+                "structured_data": data,
+                "risk_flags": [],
+                "latency_ms": int((time.time() - start) * 1000),
+                "tokens_used": 0
+            }
+        except Exception as e:
+            return {
+                "module": "whale_behavior",
+                "confidence": 0.0,
+                "error": str(e),
+                "structured_data": {},
+                "risk_flags": []
+            }
