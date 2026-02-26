@@ -15,6 +15,7 @@ MAJOR_EARNINGS = [
     
     # 3月第一周
     {"stock": "AVGO", "date": "2026-03-05", "expected_eps": 1.45, "expected_revenue": 14.0, "market_cap": 800e9},
+    {"stock": "SE", "date": "2026-03-03", "expected_eps": -0.08, "expected_revenue": 0.35, "market_cap": 15e9},
     {"stock": "COST", "date": "2026-03-05", "expected_eps": 3.80, "expected_revenue": 72.0, "market_cap": 400e9},
     {"stock": "WMT", "date": "2026-03-06", "expected_eps": 0.65, "expected_revenue": 180.0, "market_cap": 650e9},
     {"stock": "TGT", "date": "2026-03-06", "expected_eps": 1.95, "expected_revenue": 31.0, "market_cap": 50e9},
