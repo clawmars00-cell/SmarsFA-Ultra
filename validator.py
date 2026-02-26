@@ -2,7 +2,6 @@
 Validator - SubAgent输出校验
 """
 from typing import Dict, Any, List
-from schemas import SubAgentOutput
 
 
 class OutputValidator:
@@ -15,18 +14,14 @@ class OutputValidator:
     
     REQUIRED_FIELDS = ["module", "confidence", "structured_data"]
     
-    def validate(self, result: Dict[str, Any]) -> SubAgentOutput:
-        """校验并转换"""
+    def validate(self, result: Dict[str, Any]) -> Dict:
+        """校验并返回dict"""
         # 检查必需字段
         for field in self.REQUIRED_FIELDS:
             if field not in result:
                 raise ValueError(f"Missing required field: {field}")
         
-        # 置信度检查
-        if result.get("confidence", 0) < 0.6:
-            result["flagged"] = True
-        
-        return SubAgentOutput(**result)
+        return result
     
     def validate_confidence(self, result: Dict[str, Any]) -> bool:
         """检查置信度"""
