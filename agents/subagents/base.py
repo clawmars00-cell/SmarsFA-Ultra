@@ -1,10 +1,15 @@
 """
 Base SubAgent - 所有SubAgent的基类
+集成 MiniMax MCP 进行真正的 LLM 调用
 """
 import json
 import time
+import subprocess
 from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
+
+
+OPENCODE_CMD = "/home/mars/.opencode/bin/opencode"
 
 
 class BaseSubAgent(ABC):
@@ -13,6 +18,7 @@ class BaseSubAgent(ABC):
     - 标准化输入输出
     - 统一日志记录
     - Token成本追踪
+    - MiniMax MCP LLM 集成
     """
     
     def __init__(self, name: str, llm=None):
@@ -29,7 +35,7 @@ class BaseSubAgent(ABC):
             # 1. 构建prompt
             prompt = self.build_prompt(context)
             
-            # 2. 调用LLM (或mock)
+            # 2. 调用LLM (MiniMax MCP)
             response = self.call_llm(prompt)
             
             # 3. 解析响应
@@ -57,16 +63,40 @@ class BaseSubAgent(ABC):
         raise NotImplementedError
     
     def call_llm(self, prompt: str) -> str:
-        """调用LLM"""
-        # Mock模式 - 返回结构化JSON
-        return self.mock_response()
+        """调用 MiniMax MCP LLM"""
+        try:
+            # 使用 opencode 调用 MiniMax MCP
+            cmd = [OPENCODE_CMD, "run", prompt]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            # 清理 ANSI 颜色码
+            import re
+            output = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
+            return output.strip()
+            
+        except subprocess.TimeoutExpired:
+            return self.mock_response()
+        except Exception as e:
+            print(f"LLM call failed: {e}, using mock")
+            return self.mock_response()
     
     def parse_response(self, response: str) -> Dict[str, Any]:
         """解析响应"""
         try:
-            return json.loads(response)
+            # 尝试提取 JSON
+            start = response.find('{')
+            end = response.rfind('}') + 1
+            if start >= 0 and end > start:
+                return json.loads(response[start:end])
         except:
-            return {"confidence": 0.5, "key_findings": [], "structured_data": {}}
+            pass
+        return {"confidence": 0.5, "key_findings": [], "structured_data": {}}
     
     def estimate_tokens(self, prompt: str, response: str) -> int:
         """估算token使用"""

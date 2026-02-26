@@ -2,7 +2,7 @@
 WhaleBehaviorSubAgent - 资金流分析
 """
 from .base import BaseSubAgent
-from tools import get_options_chain
+from tools import get_options_data
 
 
 class WhaleBehaviorAgent(BaseSubAgent):
