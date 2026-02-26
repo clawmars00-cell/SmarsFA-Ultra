@@ -39,6 +39,9 @@ class AnalyzeRequest(BaseModel):
     stock: str
     quarter: Optional[str] = "Q4 2025"
     raw_text: Optional[str] = ""
+    actual_revenue: Optional[float] = None  # 实际营收(手动输入)
+    actual_eps: Optional[float] = None      # 实际EPS(手动输入)
+    actual_net_income: Optional[float] = None  # 实际净利润
 
 
 @app.get("/")
@@ -63,10 +66,20 @@ def health():
 async def analyze(request: AnalyzeRequest):
     """分析股票"""
     try:
+        # 构建实际数据
+        actual_data = None
+        if request.actual_revenue or request.actual_eps:
+            actual_data = {
+                "revenue": request.actual_revenue * 1e9 if request.actual_revenue else 0,
+                "eps": request.actual_eps,
+                "net_income": request.actual_net_income * 1e9 if request.actual_net_income else 0,
+            }
+        
         result = master_agent.analyze(
             request.stock.upper(),
             request.quarter,
-            request.raw_text
+            request.raw_text,
+            actual_data
         )
         
         # 存储

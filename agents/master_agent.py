@@ -49,7 +49,7 @@ class MasterAgent:
             "synthesis": SynthesisAgent(llm)
         }
     
-    def analyze(self, stock: str, quarter: str = "Q4 2025", raw_text: str = "") -> Dict[str, Any]:
+    def analyze(self, stock: str, quarter: str = "Q4 2025", raw_text: str = "", actual_data: Dict = None) -> Dict[str, Any]:
         """
         执行完整分析
         固定顺序: parsing → trend → sentiment → whale → risk → synthesis
@@ -59,6 +59,10 @@ class MasterAgent:
         # 1. 初始化上下文
         context = self.memory.init(stock, quarter, raw_text)
         context.execution_order = self.EXECUTION_ORDER.copy()
+        
+        # 如果有实际财报数据，保存到memory
+        if actual_data:
+            context.financial_metrics["actual_data"] = actual_data
         
         print(f"\n{'='*60}")
         print(f"MasterAgent - Analyzing {stock} {quarter}")
