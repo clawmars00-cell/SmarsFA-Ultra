@@ -1,7 +1,8 @@
 """
-WhaleBehaviorSubAgent - 资金流分析专家
+WhaleBehaviorSubAgent - 资金流分析专家 (真实数据版)
 """
 from .base import BaseSubAgent
+from tools import get_options_chain
 
 
 class WhaleBehaviorAgent(BaseSubAgent):
@@ -11,9 +12,15 @@ class WhaleBehaviorAgent(BaseSubAgent):
         super().__init__("whale_behavior", llm)
     
     def build_prompt(self, context: dict) -> str:
-        return f"""你是资金流专家。分析大资金动向:
+        stock = context.get("stock", "")
+        
+        # 获取真实期权数据
+        options_data = get_options_chain(stock)
+        
+        return f"""你是资金流专家。分析{stock}的大资金动向:
 
-股票: {context.get('stock')}
+期权数据:
+{options_data}
 
 请返回JSON格式:
 {{

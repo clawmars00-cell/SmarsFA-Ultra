@@ -1,7 +1,8 @@
 """
-SentimentSubAgent - 情绪分析专家
+SentimentSubAgent - 情绪分析专家 (真实数据版)
 """
 from .base import BaseSubAgent
+from tools import get_news_sentiment
 
 
 class SentimentAgent(BaseSubAgent):
@@ -11,9 +12,15 @@ class SentimentAgent(BaseSubAgent):
         super().__init__("sentiment", llm)
     
     def build_prompt(self, context: dict) -> str:
-        return f"""你是情绪分析专家。分析市场情绪:
+        stock = context.get("stock", "")
+        
+        # 获取真实新闻数据
+        news_data = get_news_sentiment(stock)
+        
+        return f"""你是情绪分析专家。分析{stock}的市场情绪:
 
-上下文: {context.get('stock')}
+新闻数据:
+{news_data}
 
 请返回JSON格式:
 {{

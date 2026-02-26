@@ -1,7 +1,8 @@
 """
-FinancialParsingSubAgent - 财报解析专家
+FinancialParsingSubAgent - 财报解析专家 (真实数据版)
 """
 from .base import BaseSubAgent
+from tools import get_stock_data, get_earnings_data
 
 
 class FinancialParsingAgent(BaseSubAgent):
@@ -12,17 +13,27 @@ class FinancialParsingAgent(BaseSubAgent):
     
     def build_prompt(self, context: dict) -> str:
         stock = context.get("stock", "")
-        raw_text = context.get("raw_text", "")[:5000]  # 限制长度
+        raw_text = context.get("raw_text", "")[:5000]
         
-        return f"""你是财务解析专家。从以下{stock}的财报中提取关键数据:
+        # 获取真实数据
+        stock_data = get_stock_data(stock)
+        earnings_data = get_earnings_data(stock)
+        
+        return f"""你是财务解析专家。从以下{stock}的财报数据中提取关键指标:
 
-财报内容:
-{raw_text or '无财报文本，使用公开数据'}
+股票数据:
+{stock_data}
+
+财报历史:
+{earnings_data}
+
+原始财报文本:
+{raw_text or '无原文'}
 
 请返回JSON格式:
 {{
     "confidence": 0.85,
-    "key_findings": ["主要发现"],
+    "key_findings": ["发现1", "发现2"],
     "structured_data": {{
         "revenue": 金额,
         "revenue_growth_yoy": 0.0,
