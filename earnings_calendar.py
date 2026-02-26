@@ -1,107 +1,54 @@
 """
-Earnings Calendar - 财报日历
-主要公司 + MCP 补充搜索
+Earnings Calendar - 未来2周财报
 """
-import subprocess
-import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict
 
 
-# 主要公司财报日期 (预设)
+# 未来2周财报 (2026-02-27 ~ 2026-03-13)
 MAJOR_EARNINGS = [
-    {"stock": "NVDA", "date": "2026-02-26", "expected_eps": 0.89, "expected_revenue": 68.1, "market_cap": 3000e9},
+    # 2/27
     {"stock": "AAPL", "date": "2026-02-27", "expected_eps": 2.84, "expected_revenue": 143.8, "market_cap": 3500e9},
-    {"stock": "MSFT", "date": "2026-01-30", "expected_eps": 3.20, "expected_revenue": 69.0, "market_cap": 3200e9},
-    {"stock": "GOOGL", "date": "2026-02-05", "expected_eps": 2.10, "expected_revenue": 96.5, "market_cap": 2100e9},
-    {"stock": "AMZN", "date": "2026-02-07", "expected_eps": 1.45, "expected_revenue": 170.0, "market_cap": 2400e9},
-    {"stock": "META", "date": "2026-01-30", "expected_eps": 6.70, "expected_revenue": 40.0, "market_cap": 1400e9},
-    {"stock": "TSLA", "date": "2026-01-30", "expected_eps": 0.81, "expected_revenue": 23.5, "market_cap": 1200e9},
-    {"stock": "AMD", "date": "2026-01-29", "expected_eps": 0.80, "expected_revenue": 7.2, "market_cap": 180e9},
-    {"stock": "INTC", "date": "2026-01-30", "expected_eps": 0.35, "expected_revenue": 14.0, "market_cap": 120e9},
-    {"stock": "AVGO", "date": "2026-03-06", "expected_eps": 1.45, "expected_revenue": 14.0, "market_cap": 800e9},
-    {"stock": "NFLX", "date": "2026-01-28", "expected_eps": 5.80, "expected_revenue": 10.0, "market_cap": 350e9},
+    
+    # 2/28
     {"stock": "CRM", "date": "2026-02-28", "expected_eps": 2.60, "expected_revenue": 9.5, "market_cap": 320e9},
+    
+    # 3月第一周
+    {"stock": "AVGO", "date": "2026-03-05", "expected_eps": 1.45, "expected_revenue": 14.0, "market_cap": 800e9},
+    {"stock": "COST", "date": "2026-03-05", "expected_eps": 3.80, "expected_revenue": 72.0, "market_cap": 400e9},
+    {"stock": "WMT", "date": "2026-03-06", "expected_eps": 0.65, "expected_revenue": 180.0, "market_cap": 650e9},
+    {"stock": "TGT", "date": "2026-03-06", "expected_eps": 1.95, "expected_revenue": 31.0, "market_cap": 50e9},
+    {"stock": "NVDA", "date": "2026-03-06", "expected_eps": 0.95, "expected_revenue": 72.0, "market_cap": 3000e9},
+    
+    # 3月第二周  
     {"stock": "ORCL", "date": "2026-03-10", "expected_eps": 1.40, "expected_revenue": 14.0, "market_cap": 450e9},
-    {"stock": "UBER", "date": "2026-02-13", "expected_eps": 0.45, "expected_revenue": 10.0, "market_cap": 150e9},
-    {"stock": "PYPL", "date": "2026-02-07", "expected_eps": 1.20, "expected_revenue": 8.0, "market_cap": 80e9},
+    {"stock": "ADBE", "date": "2026-03-11", "expected_eps": 4.50, "expected_revenue": 5.8, "market_cap": 250e9},
+    {"stock": "AMD", "date": "2026-03-11", "expected_eps": 0.85, "expected_revenue": 7.8, "market_cap": 180e9},
+    {"stock": "MRVL", "date": "2026-03-11", "expected_eps": 0.42, "expected_revenue": 1.8, "market_cap": 90e9},
+    {"stock": "CSCO", "date": "2026-03-12", "expected_eps": 0.95, "expected_revenue": 14.0, "market_cap": 220e9},
+    {"stock": "PANW", "date": "2026-03-13", "expected_eps": 0.35, "expected_revenue": 2.1, "market_cap": 120e9},
 ]
 
 
-def get_major_earnings() -> List[Dict]:
-    """获取主要公司财报"""
+def get_upcoming_earnings(days: int = 14) -> List[Dict]:
+    """获取未来N天财报"""
     today = datetime.now()
+    
     result = []
     for e in MAJOR_EARNINGS:
         date = datetime.strptime(e['date'], "%Y-%m-%d")
-        if date >= today - timedelta(days=7):
+        days_ahead = (date - today).days
+        
+        if 0 <= days_ahead <= days:
             result.append(e)
+    
     return sorted(result, key=lambda x: x['date'])
 
 
-def search_with_mcp() -> List[Dict]:
-    """用 MCP 搜索补充"""
-    print("🔍 MCP searching for more earnings...")
-    
-    cmd = ["/home/mars/.opencode/bin/opencode", "run", 
-           "列出2026年2月-3月发布财报的美股大公司，格式: 股票代码:日期:预期EPS"]
-    
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        output = result.stdout
-        
-        # 解析结果
-        earnings = []
-        for line in output.split('\n'):
-            # 格式: AAPL:2026-02-27:2.84
-            match = re.search(r'([A-Z]{3,5})[📅:\s]+(\d{1,2})/(\d{1,2})[📅:\s]+EPS[:\s]+(\d+\.?\d*)', line)
-            if match:
-                stock = match.group(1)
-                month = int(match.group(2))
-                day = int(match.group(3))
-                eps = float(match.group(4))
-                
-                earnings.append({
-                    "stock": stock,
-                    "date": f"2026-{month:02d}-{day:02d}",
-                    "expected_eps": eps,
-                    "market_cap": 100e9,  # 默认假设 >$100B
-                    "source": "mcp"
-                })
-        
-        print(f"🔍 MCP found: {len(earnings)}")
-        return earnings
-        
-    except Exception as e:
-        print(f"❌ MCP error: {e}")
-        return []
-
-
-def get_all_upcoming_earnings() -> List[Dict]:
-    """获取所有即将发布的财报"""
-    # 主要公司
-    earnings = get_major_earnings()
-    
-    # MCP 补充 (暂时跳过，避免超时)
-    # additional = search_with_mcp()
-    
-    # 合并
-    # all_earnings = earnings + additional
-    
-    # 去重
-    seen = set()
-    unique = []
-    for e in earnings:
-        if e['stock'] not in seen:
-            seen.add(e['stock'])
-            unique.append(e)
-    
-    return sorted(unique, key=lambda x: x['date'])
-
-
 if __name__ == "__main__":
-    earnings = get_all_upcoming_earnings()
-    print(f"Upcoming earnings: {len(earnings)}")
+    earnings = get_upcoming_earnings(14)
+    print(f"未来2周财报 ({len(earnings)}家):\n")
+    
     for e in earnings:
-        cap = e.get('market_cap', 0) / 1e9
-        print(f"  {e['stock']}: {e['date']}, EPS: {e.get('expected_eps')}, Cap: ${cap:.0f}B")
+        cap = e['market_cap'] / 1e9
+        print(f"{e['date']} | {e['stock']:5} | EPS: {e['expected_eps']:.2f} | Rev: {e['expected_revenue']:.1f}B | Cap: ${cap:.0f}B")
