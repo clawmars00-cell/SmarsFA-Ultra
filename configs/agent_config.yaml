@@ -1,0 +1,44 @@
+# Agent配置
+agents:
+  # 固定执行顺序
+  execution_order:
+    - parsing
+    - trend
+    - sentiment
+    - whale
+    - risk
+    - synthesis
+  
+  # SubAgent配置
+  subagents:
+    parsing:
+      name: "FinancialParsingAgent"
+      timeout_ms: 5000
+      
+    trend:
+      name: "TrendAnalysisAgent"
+      timeout_ms: 5000
+      
+    sentiment:
+      name: "SentimentAgent"
+      timeout_ms: 5000
+      
+    whale:
+      name: "WhaleBehaviorAgent"
+      timeout_ms: 5000
+      
+    risk:
+      name: "RiskAssessmentAgent"
+      timeout_ms: 5000
+      
+    synthesis:
+      name: "SynthesisAgent"
+      timeout_ms: 8000
+  
+  # 置信度阈值
+  confidence_threshold: 0.6
+  
+  # 重试配置
+  retry:
+    max_attempts: 2
+    backoff_ms: 1000

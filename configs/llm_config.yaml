@@ -1,0 +1,13 @@
+# LLM配置
+llm:
+  provider: "openai"  # openai, anthropic
+  model: "gpt-4o"
+  temperature: 0.7
+  max_tokens: 2000
+  
+  # API Keys (使用环境变量)
+  # OPENAI_API_KEY
+  # ANTHROPIC_API_KEY
+
+# Mock模式 (无API key时)
+mock_mode: true
