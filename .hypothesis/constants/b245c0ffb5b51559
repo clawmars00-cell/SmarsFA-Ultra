@@ -1,0 +1,4 @@
+# file: /home/mars/.openclaw/workspace/SmarsFA/earnings_manager.py
+# hypothesis_version: 6.151.9
+
+[1.0, 5.0, 10.0, 30.0, 1000000000.0, '\n=== NVDA 生命周期状态 ===', '\n=== 刷新数据 (同步) ===', '\n✅ 所有测试完成!', '\n等待断路器恢复...', '%Y-%m-%d', '=', 'AAPL', 'CLOSED', 'Diluted EPS', 'GOOGL', 'HALF_OPEN', 'MSFT', 'NVDA', 'Net Income', 'OPEN', 'Total Revenue', '__main__', 'calendar', 'circuit_breaker_open', 'date', 'days_until', 'eps', 'error', 'expected_eps', 'expected_revenue', 'is_beat', 'last', 'need_calendar_update', 'net_income', 'next', 'phase', 'publishing', 'quarter', 'quarter_date', 'refreshed_at', 'reported', 'reported_at', 'reported_eps', 'reported_quarter', 'reported_revenue', 'revenue', 'source', 'status', 'stock', 'unknown', 'upcoming', 'waiting_next', 'yahoo', '模拟失败', '测试: 同步功能', '测试: 异步刷新多只股票', '测试: 断路器']
