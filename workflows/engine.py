@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import logging
+import functools
 from typing import Optional, Callable, Any
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -22,6 +23,78 @@ try:
     from models.earnings import EarningsReport, ExtractionMetrics
 except ImportError:
     from models.earnings import EarningsReport, ExtractionMetrics
+
+
+def retry_on_failure(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
+    """
+    节点重试装饰器
+    
+    Args:
+        max_attempts: 最大重试次数
+        delay: 初始重试延迟(秒)
+        backoff: 退避倍数 (每次重试延迟翻倍)
+    
+    Usage:
+        @retry_on_failure(max_attempts=3)
+        async def my_node_func(node, data):
+            ...
+    """
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            last_error = None
+            current_delay = delay
+            
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_attempts:
+                        logger.warning(
+                            f"Attempt {attempt}/{max_attempts} failed: {e}. "
+                            f"Retrying in {current_delay}s..."
+                        )
+                        await asyncio.sleep(current_delay)
+                        current_delay *= backoff
+                    else:
+                        logger.error(
+                            f"All {max_attempts} attempts failed. Last error: {e}"
+                        )
+            
+            raise last_error
+        
+        @functools.wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            """同步版本的装饰器 (用于非async函数)"""
+            last_error = None
+            current_delay = delay
+            
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_attempts:
+                        logger.warning(
+                            f"Attempt {attempt}/{max_attempts} failed: {e}. "
+                            f"Retrying in {current_delay}s..."
+                        )
+                        time.sleep(current_delay)
+                        current_delay *= backoff
+                    else:
+                        logger.error(
+                            f"All {max_attempts} attempts failed. Last error: {e}"
+                        )
+            
+            raise last_error
+        
+        # 返回异步或同步版本的包装器
+        if asyncio.iscoroutinefunction(func):
+            return wrapper
+        return sync_wrapper
+    
+    return decorator
 
 
 class NodeStatus(Enum):
@@ -275,36 +348,38 @@ class WorkflowEngine:
     
     async def _execute_node(self, node: WorkflowNode, data: dict):
         """执行单个节点"""
-        print(f"[Workflow] 执行节点: {node.id}")
+        self.logger.info(f"执行节点: {node.id}")
         
-        node.status = NodeStatus.RUNNING
-        node.started_at = datetime.now()
+        # 使用 execution 中的节点来记录状态
+        exec_node = self.execution.nodes.get(node.id, node)
+        exec_node.status = NodeStatus.RUNNING
+        exec_node.started_at = datetime.now()
         self.execution.current_node = node.id
         
         try:
             if node.node_type == "agent":
                 # 执行 Agent
                 result = await self._execute_agent(node, data)
-                node.output_data = result
+                exec_node.output_data = result
                 
             elif node.node_type == "decision":
                 # 执行决策
                 next_node = await self._execute_decision(node, data)
-                node.output_data = {"next": next_node}
+                exec_node.output_data = {"next": next_node}
                 
             elif node.node_type == "action":
                 # 执行动作
                 result = await self._execute_action(node, data)
-                node.output_data = result
+                exec_node.output_data = result
             
-            node.status = NodeStatus.COMPLETED
-            node.completed_at = datetime.now()
+            exec_node.status = NodeStatus.COMPLETED
+            exec_node.completed_at = datetime.now()
             
         except Exception as e:
-            node.status = NodeStatus.FAILED
-            node.error = str(e)
-            node.completed_at = datetime.now()
-            print(f"[Workflow] 节点 {node.id} 失败: {e}")
+            exec_node.status = NodeStatus.FAILED
+            exec_node.error = str(e)
+            exec_node.completed_at = datetime.now()
+            self.logger.error(f"节点 {node.id} 失败: {e}")
             self.execution.status = WorkflowStatus.FAILED
     
     async def _execute_agent(self, node: WorkflowNode, data: dict) -> Any:
@@ -636,3 +711,115 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+# ====================
+# 简单测试
+# ====================
+
+async def test_retry_on_failure():
+    """测试 @retry_on_failure 装饰器"""
+    print("\n" + "="*60)
+    print("🧪 测试 @retry_on_failure 装饰器")
+    print("="*60)
+    
+    # 测试1: 成功后重试装饰器
+    call_count = 0
+    
+    @retry_on_failure(max_attempts=3, delay=0.1)
+    async def successful_func():
+        nonlocal call_count
+        call_count += 1
+        return "success"
+    
+    result = await successful_func()
+    print(f"✅ 测试1 - 成功函数: result={result}, call_count={call_count}")
+    assert result == "success"
+    assert call_count == 1
+    
+    # 测试2: 失败后重试3次
+    call_count = 0
+    
+    @retry_on_failure(max_attempts=3, delay=0.1)
+    async def failing_func():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise ValueError(f"Attempt {call_count} failed")
+        return "success after retry"
+    
+    try:
+        result = await failing_func()
+        print(f"✅ 测试2 - 失败重试成功: result={result}, call_count={call_count}")
+        assert result == "success after retry"
+        assert call_count == 3
+    except ValueError as e:
+        print(f"❌ 测试2失败: {e}")
+    
+    # 测试3: 超过最大重试次数
+    call_count = 0
+    
+    @retry_on_failure(max_attempts=3, delay=0.1)
+    async def always_failing_func():
+        nonlocal call_count
+        call_count += 1
+        raise ValueError("Always fails")
+    
+    try:
+        await always_failing_func()
+        print("❌ 测试3 - 应该抛出异常")
+    except ValueError:
+        print(f"✅ 测试3 - 正确抛出异常: call_count={call_count}")
+        assert call_count == 3
+    
+    print("\n🎉 所有 @retry_on_failure 测试通过!")
+
+
+async def test_workflow_methods():
+    """测试工作流方法"""
+    print("\n" + "="*60)
+    print("🧪 测试工作流方法")
+    print("="*60)
+    
+    # 创建工作流
+    workflow_config = get_earnings_extraction_workflow()
+    engine = WorkflowEngine(workflow_config)
+    
+    # 执行工作流
+    await engine.run(input_data={"ticker": "NVDA"})
+    
+    # 测试 get_node_status
+    status = engine.get_node_status("primary_extraction")
+    print(f"✅ get_node_status: {status['status']}")
+    assert status is not None
+    assert status['node_id'] == 'primary_extraction'
+    
+    # 测试不存在的节点
+    status = engine.get_node_status("nonexistent")
+    assert status is None
+    print("✅ get_node_status (不存在节点): 返回 None")
+    
+    # 测试 pause/resume
+    engine.execution.status = WorkflowStatus.RUNNING
+    paused = engine.pause()
+    print(f"✅ pause: {paused}")
+    assert paused == True
+    assert engine._paused == True
+    
+    resumed = engine.resume()
+    print(f"✅ resume: {resumed}")
+    assert resumed == True
+    assert engine._paused == False
+    
+    # 测试重复 pause/resume
+    paused = engine.pause()
+    print(f"✅ pause (重复): {paused}")
+    resumed = engine.resume()
+    print(f"✅ resume (重复): {resumed}")
+    
+    print("\n🎉 所有工作流方法测试通过!")
+
+
+if __name__ == "__main__":
+    asyncio.run(test_retry_on_failure())
+    asyncio.run(test_workflow_methods())
