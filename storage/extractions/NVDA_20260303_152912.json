@@ -1,0 +1,85 @@
+{
+  "report": {
+    "ticker": "NVDA",
+    "company_name": "NVIDIA Corporation",
+    "fiscal_quarter": "2026 Q4",
+    "fiscal_year": 2026,
+    "report_date": "2026-02-15",
+    "earnings_call_date": "2026-02-16",
+    "financials": {
+      "revenue": {
+        "actual": 35100.0,
+        "estimate": 33000.0,
+        "growth_yoy": 25.5
+      },
+      "eps": {
+        "actual": 0.81,
+        "estimate": 0.75,
+        "growth_yoy": 15.2
+      },
+      "net_income": {
+        "actual": 8500.0,
+        "estimate": null,
+        "growth_yoy": 18.3
+      },
+      "operating_income": {
+        "actual": 12000.0,
+        "estimate": null,
+        "growth_yoy": 20.1
+      },
+      "ebitda": {
+        "actual": 15000.0,
+        "estimate": null,
+        "growth_yoy": 22.1
+      },
+      "gross_margin": 55.2,
+      "net_margin": 24.3,
+      "operating_margin": 34.3,
+      "pe_ratio": null,
+      "pb_ratio": null,
+      "ps_ratio": null,
+      "operating_cash_flow": null,
+      "free_cash_flow": null,
+      "capital_expenditure": null,
+      "total_assets": null,
+      "total_liabilities": null,
+      "shareholders_equity": null,
+      "debt_to_equity": null,
+      "book_value_per_share": null,
+      "operating_cash_flow_per_share": null,
+      "free_cash_flow_per_share": null
+    },
+    "guidance": "We expect Q2 revenue to be approximately $36 billion, driven by strong data center demand.",
+    "guidance_direction": "up",
+    "guidance_eps_low": null,
+    "guidance_eps_high": null,
+    "sentiment": {
+      "label": "Bullish",
+      "confidence": 0.92,
+      "reasoning": "Revenue beat estimates by 6%, guidance raised on strong AI chip demand.",
+      "positive_signals": [
+        "Data center revenue at record high",
+        "AI chip demand unprecedented"
+      ],
+      "negative_signals": [
+        "Supply chain constraints"
+      ]
+    },
+    "source": "10-Q",
+    "raw_text_length": 720,
+    "is_data_complete": true,
+    "data_quality": "high",
+    "missing_fields": [],
+    "extraction_notes": null,
+    "extracted_at": "2026-03-03 15:29:12.319545"
+  },
+  "metrics": {
+    "model_used": "qwen3.5-plus",
+    "token_usage": 615,
+    "processing_time_seconds": 1.022504,
+    "confidence_score": 0.92,
+    "status": "success",
+    "requires_manual_review": false,
+    "fallback_triggered": false
+  }
+}
