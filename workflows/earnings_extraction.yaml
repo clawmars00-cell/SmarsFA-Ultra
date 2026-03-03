@@ -1,0 +1,187 @@
+# SmarsFA-Ultra 数据提取工作流 (DAG)
+# 有条件分支 + 冲突解决 + 动态路由
+# Version: 1.0
+
+version: "2026.2"
+workflow_id: "earnings_extraction_pipeline"
+
+# ============================================
+# 工作流配置
+# ============================================
+
+config:
+  name: "Earnings Data Extraction Pipeline"
+  description: "多轮寻回与补偿机制 - 确保数据完整性"
+  max_retries: 2
+  timeout_seconds: 300
+
+# ============================================
+# 节点定义 (DAG States)
+# ============================================
+
+states:
+  # =====================
+  # Stage 1: 初次提取
+  # =====================
+  - id: "primary_extraction"
+    type: "agent"
+    agent: "smars-coder"
+    action: "extract_from_pdf"
+    input:
+      source_file: "${workflow.input_file}"
+      prompt_template: "earnings_v2"
+    output:
+      - "earnings_report"
+      - "confidence_score"
+      - "missing_fields"
+    next: "validate_data"
+    timeout: 120
+
+  # =====================
+  # Stage 2: 质量校验
+  # =====================
+  - id: "validate_data"
+    type: "decision"
+    condition: |
+      # 触发补偿的条件
+      primary_extraction.output.confidence_score < 0.8 
+      OR primary_extraction.output.guidance == null 
+      OR primary_extraction.output.missing_fields.length > 2
+    branches:
+      - condition: true
+        next: "spawn_searcher"  # 需要补偿
+      - condition: false
+        next: "finalize_report"  # 数据完整
+
+  # =====================
+  # Stage 3: 补偿搜索
+  # =====================
+  - id: "spawn_searcher"
+    type: "agent"
+    agent: "smars-searcher"
+    action: "web_search_and_extract"
+    input:
+      ticker: "${primary_extraction.output.ticker}"
+      quarter: "${primary_extraction.output.fiscal_quarter}"
+      missing_fields: "${primary_extraction.output.missing_fields}"
+      # 动态 Token 路由：只取相关内容
+      max_tokens: 10000
+    output:
+      - "supplemental_data"
+      - "source_urls"
+    next: "merge_results"
+    timeout: 60
+
+  # =====================
+  # Stage 4: 冲突解决
+  # =====================
+  - id: "merge_results"
+    type: "agent"
+    agent: "smars-reviewer"
+    action: "resolve_conflicts"
+    input:
+      base_data: "${primary_extraction.output}"
+      supplemental_data: "${spawn_searcher.output}"
+    rules:
+      # 源可信度权重 (降序)
+      - source: "10-Q/10-K"
+        weight: 1.0
+        description: "SEC官方文件，最可信"
+      - source: "8-K"
+        weight: 0.9
+        description: "SEC临时公告"
+      - source: "earnings_call"
+        weight: 0.8
+        description: "电话会议"
+      - source: "press_release"
+        weight: 0.7
+        description: "新闻稿"
+      - source: "yahoo_finance"
+        weight: 0.6
+        description: "第三方数据"
+      - source: "seeking_alpha"
+        weight: 0.5
+        description: "财经网站"
+    output:
+      - "merged_report"
+      - "conflict_log"
+      - "resolution_notes"
+    next: "finalize_report"
+
+  # =====================
+  # Stage 5: 最终归档
+  # =====================
+  - id: "finalize_report"
+    type: "action"
+    action: "save_to_db"
+    input:
+      report: "${merge_results.output ?? primary_extraction.output}"
+      metadata:
+        workflow_id: "earnings_extraction_pipeline"
+        completed_at: "${timestamp}"
+        had_fallback: "${spawn_searcher.was_triggered}"
+    output:
+      - "final_report"
+      - "db_record_id"
+
+# ============================================
+# 监控指标
+# ============================================
+
+monitoring:
+  metrics:
+    - name: "extraction_success_rate"
+      description: "初次提取成功率"
+      target: "> 80%"
+    
+    - name: "fallback_trigger_rate"
+      description: "触发补偿比例"
+      target: "< 20%"
+    
+    - name: "conflict_resolution_accuracy"
+      description: "冲突解决准确率"
+      target: "> 95%"
+    
+    - name: "avg_token_usage"
+      description: "平均Token消耗"
+      target: "< 40000"
+    
+    - name: "avg_processing_time"
+      description: "平均处理时间"
+      target: "< 180s"
+
+  alerts:
+    - condition: "confidence_score < 0.6"
+      level: "critical"
+      action: "notify_human"
+      message: "数据提取质量严重不足，需要人工复核"
+    
+    - condition: "fallback_trigger_rate > 30%"
+      level: "warning"
+      action: "report"
+      message: "补偿触发率过高，需优化提取策略"
+
+# ============================================
+# 统计报告 (定期生成)
+# ============================================
+
+reports:
+  weekly:
+    - "哪些公司最容易缺失 guidance"
+    - "smars-searcher 召回率"
+    - "Token 消耗统计"
+    - "处理时间趋势"
+  
+  monthly:
+    - "Agent 团队绩效报告"
+    - "数据质量趋势"
+    - "成本分析"
+
+# ============================================
+# 版本信息
+# ============================================
+
+version_info:
+  created: "2026-03-03"
+  updated: "2026-03-03"
+  author: "SmarsFA Team"

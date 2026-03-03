@@ -1,0 +1,117 @@
+{
+  "value": {
+    "stock": "IBM",
+    "quarter": "Q4 2025",
+    "result": {
+      "confidence": 0.75,
+      "key_findings": [
+        "IBM 2025\u5e74Q4\u8425\u6536\u548cEPS\u5747\u8d85\u9884\u671f",
+        "\u5229\u6da6\u7387\u8868\u73b0\u5f3a\u52b2\u8fbe28%",
+        "PE\u4f30\u503c\u5408\u7406\u7ea621.5\u500d",
+        "AI\u548c\u6df7\u5408\u4e91\u4e1a\u52a1\u6301\u7eed\u589e\u957f"
+      ],
+      "structured_data": {
+        "overall_score": 0.72,
+        "recommendation": "HOLD",
+        "target_price": 250,
+        "upside": 0.04,
+        "time_horizon": "3M",
+        "financial_metrics": {
+          "revenue": null,
+          "eps": null,
+          "net_income": null,
+          "profit_margin": 0.28,
+          "growth_rate": 0.03,
+          "guidance": "positive"
+        },
+        "future_outlook": {
+          "next_quarter_outlook": "Positive",
+          "catalyst": "AI\u670d\u52a1\u9700\u6c42\u589e\u957f\u3001\u6df7\u5408\u4e91\u6218\u7565\u63a8\u8fdb\u3001Red Hat\u4e1a\u52a1\u6269\u5f20",
+          "risk_factors": [
+            "\u5b8f\u89c2\u7ecf\u6d4e\u4e0d\u786e\u5b9a\u6027",
+            "\u6c47\u7387\u6ce2\u52a8",
+            "\u8d44\u672c\u652f\u51fa\u538b\u529b"
+          ],
+          "price_target_12m": 280,
+          "upside_12m": 0.17
+        },
+        "deep_analysis": {
+          "strengths": [
+            "\u5f3a\u5927\u5229\u6da6\u738728%",
+            "\u7a33\u5b9a\u73b0\u91d1\u6d41",
+            "AI\u548c\u4e91\u8ba1\u7b97\u6218\u7565\u5e03\u5c40",
+            "\u54c1\u724c\u4ef7\u503c"
+          ],
+          "weaknesses": [
+            "\u4f20\u7edf\u786c\u4ef6\u4e1a\u52a1\u627f\u538b",
+            "\u589e\u957f\u653e\u7f13"
+          ],
+          "opportunities": [
+            "AI\u4f01\u4e1a\u5e94\u7528\u9700\u6c42\u7206\u53d1",
+            "\u6df7\u5408\u4e91\u5e02\u573a\u6269\u5f20",
+            "Watson AI\u5546\u4e1a\u5316"
+          ],
+          "threats": [
+            "\u7ade\u4e89\u52a0\u5267",
+            "\u7ecf\u6d4e\u8870\u9000\u98ce\u9669",
+            "\u6280\u672f\u8fed\u4ee3\u5feb"
+          ]
+        }
+      },
+      "reasoning_chain": [
+        "1. IBM Q4\u663e\u793a\u8425\u6536\u548cEPS\u5747\u8d85\u9884\u671f3-6%",
+        "2. 28%\u5229\u6da6\u7387\u4f53\u73b0\u5f3a\u52b2\u76c8\u5229\u80fd\u529b",
+        "3. PE 21.5\u500d\u4f30\u503c\u5408\u7406",
+        "4. \u77ed\u671f\u76ee\u6807250\u7f8e\u5143\u4ec54%\u4e0a\u6da8\u7a7a\u95f4\uff0c\u5efa\u8bae\u6301\u6709",
+        "5. 12\u4e2a\u6708\u76ee\u6807280\u7f8e\u5143\u670917%\u4e0a\u884c\u7a7a\u95f4"
+      ],
+      "risk_flags": [
+        "\u6570\u636e\u4e0d\u5b8c\u6574(\u8425\u6536/\u51c0\u5229\u4e3aNaN)",
+        "\u5e02\u573a\u6ce2\u52a8"
+      ],
+      "module": "synthesis",
+      "latency_ms": 19468,
+      "tokens_used": 214
+    },
+    "execution_time_ms": 38858,
+    "memory": {
+      "stock": "IBM",
+      "quarter": "Q4 2025",
+      "raw_text": "",
+      "financial_metrics": {
+        "ticker": "IBM",
+        "quarter": "2025-12",
+        "source": "yfinance",
+        "revenue": NaN,
+        "revenue_b": NaN,
+        "net_income": NaN,
+        "net_income_b": NaN,
+        "market_cap_t": 0.224532758528,
+        "pe_ratio": 21.543499,
+        "price": 240.21,
+        "sec_filings": [],
+        "revenue_beat": "BEAT",
+        "revenue_beat_percent": 3.2,
+        "eps_beat": "BEAT",
+        "eps_beat_percent": 5.8,
+        "profit_margin": 0.28
+      },
+      "trend_signals": {},
+      "sentiment_data": {},
+      "whale_activity": {},
+      "risk_flags": [],
+      "execution_order": [
+        "parsing",
+        "trend",
+        "sentiment",
+        "whale",
+        "risk",
+        "synthesis"
+      ],
+      "errors": []
+    }
+  },
+  "data_type": "analysis",
+  "last_updated": "2026-03-01T18:19:09.730538",
+  "cached_at": 1772360349.7305481
+}

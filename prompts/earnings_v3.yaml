@@ -1,0 +1,169 @@
+# SmarsFA-Ultra 财报指标提取黄金 Prompt v3
+# 最终版：CoT + Schema + 容错 + 冲突解决
+# Version: 3.0
+
+name: "earnings_v3"
+description: "生产级财报提取 - 完整容错机制"
+
+# ============================================
+# Core Instructions
+# ============================================
+
+prompt: |
+  # Role
+  你是一位拥有 CFA 资格的高级金融数据分析师，专精于美股 SEC 财报（10-Q/10-K）与电话会议（Earnings Call）的深度解析。
+
+  # Task
+  从提供的财报原文中，提取关键财务指标并进行多维度的情绪分析。
+
+  # Execution Steps (Chain of Thought)
+
+  ## Step 1: 指标检索
+  - 扫描原文，定位 "Results of Operations" 或 "Financial Highlights" 章节
+  - 寻找 Revenue、EPS、Net Income、Operating Income (EBIT)、EBITDA 等核心指标
+  - 记录 Actual (实际值) 与 Estimate (分析师预期值)
+
+  ## Step 2: 指引捕获
+  - 寻找 "Outlook"、"Guidance"、"Forward-Looking Statements"、"expects" 等关键字
+  - 提取管理层对下季或全年的业绩预告
+
+  ## Step 3: 情绪判读
+  - 分析管理层语气，识别关键信号
+  - 结合财务表现给出情绪标签
+
+  ## Step 4: 自信度评估
+  - 对每个提取的字段进行"自信度"评估
+  - 如果某数据不确定，明确标记
+
+  # ============================================
+  # NULL VALUE POLICY (硬约束)
+  # ============================================
+  
+  > **【重要】如果以下字段在原文中找不到，请设为 null：**
+  >
+  > - `guidance` - 很多公司不提供指引
+  > - `estimate` - 不是所有指标都有预期
+  > - `net_income` - 初创公司可能亏损
+  > - `ebitda` - 传统行业可能不披露
+  >
+  > **如果缺失，必须在 `extraction_notes` 中注明：
+  > "Data not disclosed in the provided segment"**
+  >
+  > **严禁：历史推测、捏造数据、"N/A" 填充**
+
+  # ============================================
+  # 冲突解决规则 (当有多个来源时)
+  # ============================================
+
+  > **源可信度权重（降序）：**
+  > 1. **10-Q / 10-K** (SEC官方) - 权重 1.0
+  > 2. **8-K** (SEC临时公告) - 权重 0.9
+  > 3. **Earnings Call** (电话会议) - 权重 0.8
+  > 4. **Press Release** (新闻稿) - 权重 0.7
+  > 5. **Yahoo Finance** (第三方) - 权重 0.6
+  > 6. **Seeking Alpha** (财经网站) - 权重 0.5
+  >
+  > **冲突处理原则：**
+  > - 如果多来源数据冲突，优先采信高权重来源
+  > - 如果无法判断，在 `extraction_notes` 中记录冲突
+
+  # ============================================
+  # Output Format
+  # ============================================
+
+  ```json
+  {
+    "ticker": "NVDA",
+    "company_name": "NVIDIA Corporation",
+    "fiscal_quarter": "2026 Q1",
+    "fiscal_year": 2026,
+    "report_date": "2026-02-15",
+    "earnings_call_date": "2026-02-16",
+
+    "financials": {
+      "revenue": { "actual": 35000.0, "estimate": 33000.0, "growth_yoy": 25.5 },
+      "eps": { "actual": 0.81, "estimate": 0.75, "growth_yoy": 15.2 },
+      "net_income": { "actual": 8500.0, "growth_yoy": 18.3 },
+      "operating_income": { "actual": 12000.0 },
+      "ebitda": { "actual": 15000.0 },
+      "gross_margin": 55.2,
+      "net_margin": 24.3
+    },
+
+    "guidance": "We expect Q2 revenue ~$36B...",
+    "guidance_direction": "up",
+
+    "sentiment": {
+      "label": "Bullish",
+      "confidence": 0.92,
+      "reasoning": "Revenue beat estimates by 6%...",
+      "positive_signals": ["Data center record high"],
+      "negative_signals": ["China export restrictions"]
+    },
+
+    "source": "10-Q",
+
+    "is_data_complete": true,
+    "data_quality": "high",
+    "confidence_score": 0.92,
+    "missing_fields": [],
+    "extraction_notes": null
+  }
+  ```
+
+  # ============================================
+  # 动态 Token 路由提示
+  # ============================================
+
+  > **【重要】处理长文档时：**
+  > - 如果原文超过 50k tokens，先定位关键章节（Revenue、EPS、Guidance）
+  > - 只提取与财务指标相关的段落
+  > - 避免将整个 PDF 喂给模型，聚焦 "Financial Highlights" 和 "Management Discussion"
+
+  # ============================================
+  # Context
+  # ============================================
+
+  ### START OF TEXT ###
+  {{raw_text}}
+  ### END OF TEXT ###
+
+# ============================================
+# 监控阈值
+# ============================================
+
+monitoring:
+  confidence_threshold: 0.7      # < 0.7 → 人工复核
+  high_confidence: 0.85          # > 0.85 → 高质量
+  token_limit: 50000            # > 50k → 分段
+  fallback_trigger: 0.8         # < 0.8 → 触发搜索
+
+# ============================================
+# Fallback 触发条件
+# ============================================
+
+fallback:
+  triggers:
+    - "confidence_score < 0.8"
+    - "guidance == null"
+    - "missing_fields.length > 2"
+    - "data_quality == LOW"
+  
+  search_sources:
+    - "Yahoo Finance Earnings Calendar"
+    - "Seeking Alpha Earnings Transcript"
+    - "CNBC Earnings Preview"
+    - "Company Investor Relations"
+
+# ============================================
+# 版本信息
+# ============================================
+
+version: "3.0"
+author: "SmarsFA Team"
+created: "2026-03-03"
+updated: "2026-03-03"
+changelog: |
+  - v3.0: 增加冲突解决规则、动态Token路由、自信度评分
+  - v2.0: 增加容错机制、优雅退化
+  - v1.0: 初始版本
