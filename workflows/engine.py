@@ -4,10 +4,19 @@
 import asyncio
 import json
 import os
+import logging
 from typing import Optional, Callable, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import time
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 try:
     from models.earnings import EarningsReport, ExtractionMetrics
@@ -82,13 +91,42 @@ class WorkflowEngine:
     - Agent 调用
     - 状态持久化
     - Fallback 机制
+    - 超时处理
+    - 重试机制 (最多3次)
+    - 暂停/恢复功能
     """
+    
+    # 默认配置
+    DEFAULT_MAX_RETRIES = 3
+    DEFAULT_TIMEOUT_SECONDS = 300
+    DEFAULT_RETRY_DELAY = 1.0  # 重试间隔(秒)
     
     def __init__(self, workflow_config: dict):
         self.config = workflow_config
         self.workflow_id = workflow_config.get("workflow_id", "default")
         self.nodes = self._build_nodes(workflow_config)
         self.execution: Optional[WorkflowExecution] = None
+        
+        # 错误处理配置
+        self.max_retries = workflow_config.get("max_retries", self.DEFAULT_MAX_RETRIES)
+        self.timeout_seconds = workflow_config.get("timeout_seconds", self.DEFAULT_TIMEOUT_SECONDS)
+        self.retry_delay = workflow_config.get("retry_delay", self.DEFAULT_RETRY_DELAY)
+        
+        # 暂停/恢复状态
+        self._paused = False
+        self._pause_event = asyncio.Event()
+        self._pause_event.set()  # 默认不暂停
+        
+        # 持久化路径
+        self.state_file = workflow_config.get("state_file", f"/tmp/workflow_{self.workflow_id}_state.json")
+        
+        # 日志记录
+        self._setup_logging()
+    
+    def _setup_logging(self):
+        """设置日志记录器"""
+        self.logger = logging.getLogger(f"workflow.{self.workflow_id}")
+        self.logger.setLevel(logging.INFO)
         
     def _build_nodes(self, config: dict) -> dict[str, WorkflowNode]:
         """构建节点"""
@@ -121,6 +159,8 @@ class WorkflowEngine:
         Returns:
             WorkflowExecution: 执行结果
         """
+        self.logger.info(f"开始执行工作流: {self.workflow_id}")
+        
         # 初始化执行
         self.execution = WorkflowExecution(
             workflow_id=self.workflow_id,
@@ -132,23 +172,37 @@ class WorkflowEngine:
         self.context = context or {}
         self.input_data = input_data
         
+        # 重置暂停状态
+        self._paused = False
+        self._pause_event.set()
+        
         # 找到起始节点
         start_node = self._find_start_node()
         if not start_node:
+            self.logger.error("未找到起始节点")
             raise ValueError("未找到起始节点")
+        
+        self.logger.info(f"起始节点: {start_node.id}")
         
         # 执行工作流
         current = start_node
         while current and not self.execution.is_complete:
+            # 检查是否暂停
+            await self._check_pause()
+            
             # 更新节点状态
             if current.id in self.execution.nodes:
                 self.execution.nodes[current.id].status = NodeStatus.RUNNING
             
-            await self._execute_node(current, input_data)
+            # 执行节点 (带重试和超时)
+            await self._execute_node_with_retry(current, input_data)
             
             # 更新节点状态
             if current.id in self.execution.nodes:
                 self.execution.nodes[current.id].status = current.status
+            
+            # 持久化状态
+            self._persist_state()
             
             # 确定下一个节点
             next_node = self._get_next_node(current)
@@ -156,12 +210,63 @@ class WorkflowEngine:
             # 如果没有下一个节点且当前已完成，标记工作流完成
             if next_node is None and current.status == NodeStatus.COMPLETED:
                 self.execution.status = WorkflowStatus.COMPLETED
+                self.logger.info(f"工作流完成: {self.workflow_id}")
             
             current = next_node
         
         self.execution.completed_at = datetime.now()
         
+        # 最终持久化
+        self._persist_state()
+        
         return self.execution
+    
+    async def _check_pause(self):
+        """检查是否需要暂停"""
+        if self._paused:
+            self.logger.info("工作流已暂停，等待恢复...")
+            await self._pause_event.wait()
+            self.logger.info("工作流恢复执行")
+    
+    async def _execute_node_with_retry(self, node: WorkflowNode, data: dict):
+        """
+        执行节点 (带重试机制)
+        
+        最多重试 max_retries 次
+        """
+        attempt = 0
+        last_error = None
+        
+        while attempt < self.max_retries:
+            try:
+                # 检查超时
+                result = await asyncio.wait_for(
+                    self._execute_node(node, data),
+                    timeout=self.timeout_seconds
+                )
+                self.logger.info(f"节点 {node.id} 执行成功 (尝试 {attempt + 1}/{self.max_retries})")
+                return result
+                
+            except asyncio.TimeoutError:
+                last_error = f"节点 {node.id} 执行超时 ({self.timeout_seconds}秒)"
+                self.logger.warning(f"{last_error} (尝试 {attempt + 1}/{self.max_retries})")
+                
+            except Exception as e:
+                last_error = str(e)
+                self.logger.warning(f"节点 {node.id} 执行失败: {last_error} (尝试 {attempt + 1}/{self.max_retries})")
+            
+            attempt += 1
+            
+            if attempt < self.max_retries:
+                # 重试延迟
+                self.logger.info(f"等待 {self.retry_delay} 秒后重试...")
+                await asyncio.sleep(self.retry_delay)
+        
+        # 所有重试都失败
+        self.logger.error(f"节点 {node.id} 执行失败，已重试 {self.max_retries} 次: {last_error}")
+        node.status = NodeStatus.FAILED
+        node.error = last_error
+        self.execution.status = WorkflowStatus.FAILED
     
     def _find_start_node(self) -> Optional[WorkflowNode]:
         """找到起始节点 (没有其他节点指向它)"""
@@ -277,17 +382,164 @@ class WorkflowEngine:
         if not self.execution:
             return {"status": "not_started"}
         
+        # 计算节点执行时间
+        node_timings = {}
+        for k, v in self.execution.nodes.items():
+            timing = {}
+            if v.started_at:
+                timing["started_at"] = v.started_at.isoformat()
+            if v.completed_at:
+                timing["completed_at"] = v.completed_at.isoformat()
+            if v.started_at and v.completed_at:
+                timing["duration_seconds"] = (v.completed_at - v.started_at).total_seconds()
+            node_timings[k] = timing
+        
         return {
             "workflow_id": self.workflow_id,
             "status": self.execution.status.value,
             "current_node": self.execution.current_node,
             "duration_seconds": self.execution.duration_seconds,
             "fallback_triggered": self.execution.fallback_triggered,
+            "paused": self._paused,
             "nodes": {
-                k: {"status": v.status.value, "error": v.error}
+                k: {
+                    "status": v.status.value, 
+                    "error": v.error,
+                    "started_at": v.started_at.isoformat() if v.started_at else None,
+                    "completed_at": v.completed_at.isoformat() if v.completed_at else None,
+                    "duration_seconds": (v.completed_at - v.started_at).total_seconds() 
+                                        if v.started_at and v.completed_at else None
+                }
                 for k, v in self.execution.nodes.items()
-            }
+            },
+            "node_timings": node_timings
         }
+    
+    def get_node_status(self, node_id: str) -> Optional[dict]:
+        """
+        获取指定节点状态
+        
+        Args:
+            node_id: 节点ID
+            
+        Returns:
+            节点状态字典，如果节点不存在返回 None
+        """
+        if not self.execution or node_id not in self.execution.nodes:
+            return None
+        
+        node = self.execution.nodes[node_id]
+        return {
+            "node_id": node_id,
+            "status": node.status.value,
+            "error": node.error,
+            "started_at": node.started_at.isoformat() if node.started_at else None,
+            "completed_at": node.completed_at.isoformat() if node.completed_at else None,
+            "duration_seconds": (node.completed_at - node.started_at).total_seconds() 
+                               if node.started_at and node.completed_at else None,
+            "output_data": node.output_data,
+            "input_data": node.input_data
+        }
+    
+    def pause(self) -> bool:
+        """
+        暂停工作流
+        
+        Returns:
+            是否成功暂停
+        """
+        if self.execution and self.execution.status == WorkflowStatus.RUNNING:
+            self._paused = True
+            self._pause_event.clear()
+            self.logger.info(f"工作流已暂停: {self.workflow_id}")
+            self._persist_state()
+            return True
+        return False
+    
+    def resume(self) -> bool:
+        """
+        恢复工作流
+        
+        Returns:
+            是否成功恢复
+        """
+        if self._paused:
+            self._paused = False
+            self._pause_event.set()
+            self.logger.info(f"工作流已恢复: {self.workflow_id}")
+            self._persist_state()
+            return True
+        return False
+    
+    def _persist_state(self):
+        """持久化工作流状态到文件"""
+        try:
+            if self.execution:
+                state = {
+                    "workflow_id": self.workflow_id,
+                    "status": self.execution.status.value,
+                    "current_node": self.execution.current_node,
+                    "started_at": self.execution.started_at.isoformat() if self.execution.started_at else None,
+                    "completed_at": self.execution.completed_at.isoformat() if self.execution.completed_at else None,
+                    "paused": self._paused,
+                    "nodes": {
+                        k: {
+                            "status": v.status.value,
+                            "error": v.error,
+                            "started_at": v.started_at.isoformat() if v.started_at else None,
+                            "completed_at": v.completed_at.isoformat() if v.completed_at else None
+                        }
+                        for k, v in self.execution.nodes.items()
+                    }
+                }
+                
+                os.makedirs(os.path.dirname(self.state_file), exist_ok=True)
+                with open(self.state_file, 'w') as f:
+                    json.dump(state, f, indent=2, default=str)
+                
+                self.logger.debug(f"状态已持久化: {self.state_file}")
+        except Exception as e:
+            self.logger.warning(f"状态持久化失败: {e}")
+    
+    def load_state(self) -> bool:
+        """
+        从文件加载工作流状态
+        
+        Returns:
+            是否成功加载
+        """
+        if not os.path.exists(self.state_file):
+            return False
+        
+        try:
+            with open(self.state_file, 'r') as f:
+                state = json.load(f)
+            
+            # 恢复状态
+            self._paused = state.get("paused", False)
+            
+            if self.execution:
+                status_str = state.get("status")
+                if status_str:
+                    self.execution.status = WorkflowStatus(status_str)
+                
+                self.execution.current_node = state.get("current_node")
+                
+                # 恢复节点状态
+                nodes_state = state.get("nodes", {})
+                for node_id, node_state in nodes_state.items():
+                    if node_id in self.execution.nodes:
+                        status_val = node_state.get("status")
+                        if status_val:
+                            self.execution.nodes[node_id].status = NodeStatus(status_val)
+                        self.execution.nodes[node_id].error = node_state.get("error")
+            
+            self.logger.info(f"状态已加载: {self.state_file}")
+            return True
+            
+        except Exception as e:
+            self.logger.warning(f"状态加载失败: {e}")
+            return False
 
 
 # ====================
